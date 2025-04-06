@@ -139,7 +139,8 @@ HTML_FORM = """
 </html>
 """
 
-def compress_to_webp(input_path, output_path, max_size_kb=50):
+def compress_to_webp(input_path, output_path, max_size_kb=100):
+    # Fungsi kompresi yang sama seperti sebelumnya
     try:
         img = Image.open(input_path)
         img = img.convert("RGB")
@@ -159,6 +160,7 @@ def compress_to_webp(input_path, output_path, max_size_kb=50):
         return False
 
 def upload_to_supabase(file_path, keyword):
+    # Fungsi upload yang sama seperti sebelumnya
     try:
         with open(file_path, 'rb') as f:
             file_data = f.read()
@@ -176,7 +178,7 @@ def index():
         show_karakter = int(request.form['show_karakter'])
         
         for keyword in keywords:
-            temp_dir = os.path.join('temp', keyword)  # Unique folder per keyword
+            temp_dir = os.path.join('temp', keyword)
             os.makedirs(temp_dir, exist_ok=True)
             
             try:
@@ -199,40 +201,43 @@ def index():
                             url = upload_to_supabase(output_path, keyword)
                             if url:
                                 image_urls.append(url)
-                                last_valid_url = url  # Simpan URL terakhir yang valid
+                                last_valid_url = url
                             else:
-                                image_urls.append(last_valid_url if last_valid_url else '#')  # Fallback
+                                image_urls.append(last_valid_url or '#')
                         else:
-                            image_urls.append(last_valid_url if last_valid_url else '#')  # Fallback
+                            image_urls.append(last_valid_url or '#')
                     else:
-                        # Jika gambar kurang dari 4, duplikat URL terakhir atau isi dummy
-                        image_urls.append(last_valid_url if last_valid_url else '#')
+                        image_urls.append(last_valid_url or '#')
                 
-                # Pastikan selalu ada 4 URL
-                final_urls = image_urls[:4]  # Ambil maksimal 4
+                final_urls = image_urls[:4]
+                
+                # Cek jika semua gambar gagal
+                if all(url == '#' for url in final_urls):
+                    print(f"⚠️ Semua gambar gagal untuk {keyword}, lewati database")
+                    continue
                 
                 # Insert ke database
                 response = supabase.table('puzzles').insert({
                     'answer': keyword,
-                    'image_url_1': final_urls[0] if final_urls[0] else '#',
-                    'image_url_2': final_urls[1] if len(final_urls) > 1 else final_urls[0],
-                    'image_url_3': final_urls[2] if len(final_urls) > 2 else final_urls[0],
-                    'image_url_4': final_urls[3] if len(final_urls) > 3 else final_urls[0],
+                    'image_url_1': final_urls[0],
+                    'image_url_2': final_urls[1],
+                    'image_url_3': final_urls[2],
+                    'image_url_4': final_urls[3],
                     'created_at': datetime.datetime.now().isoformat(),
                     'show_karakter': show_karakter
                 }).execute()
                 
                 if response.error:
-                    print(f"⚠️ Database Error for {keyword}: {response.error.message}")
+                    print(f"⚠️ Database Error untuk {keyword}: {response.error.message}")
                 else:
-                    print(f"✅ Success: {keyword} inserted with {len(final_urls)} images")
+                    print(f"✅ Sukses: {keyword} dimasukkan dengan {len([url for url in final_urls if url != '#'])} gambar")
                 
             except Exception as e:
-                print(f"❌ Critical error processing {keyword}: {str(e)}")
+                print(f"❌ Error kritis saat memproses {keyword}: {str(e)}")
             finally:
                 shutil.rmtree(temp_dir, ignore_errors=True)
         
-        return redirect('/?success=true')  # Tambahkan query parameter
+        return redirect('/?success=true')
     
     return render_template_string(HTML_FORM)
 
