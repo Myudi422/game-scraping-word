@@ -1,0 +1,5 @@
+Flask
+icrawler
+Pillow
+supabase
+python-dotenv
