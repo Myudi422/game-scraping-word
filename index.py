@@ -9,7 +9,7 @@ import datetime
 
 # Supabase Configuration
 SUPABASE_URL = "https://mudecnmfofdtjszomrfw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51ZGVjbm1mb2ZkdGpzem9tcmZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1ODMwMTgsImV4cCI6MjA1OTE1OTAxOH0.3DVq_QJACt-7wBK1TZE69o8ycbPAT8xVxWj5KMLrAXk"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11ZGVjbm1mb2ZkdGpzem9tcmZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1ODMwMTgsImV4cCI6MjA1OTE1OTAxOH0.3DVq_QJACt-7wBK1TZE69o8ycbPAT8xVxWj5KMLrAXk"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
