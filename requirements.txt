@@ -3,3 +3,4 @@ icrawler
 Pillow
 supabase
 python-dotenv
+httpx[http2]
