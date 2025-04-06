@@ -162,23 +162,11 @@ def upload_to_supabase(file_path, keyword):
     try:
         with open(file_path, 'rb') as f:
             file_data = f.read()
-        file_name = os.path.basename(file_path)
+        file_name = f"{keyword}_{os.path.basename(file_path)}"
         res = supabase.storage.from_(STORAGE_BUCKET).upload(file_name, file_data)
         return supabase.storage.from_(STORAGE_BUCKET).get_public_url(file_name)
     except Exception as e:
         print(f"Upload error: {e}")
-        return None
-
-def get_existing_image_url(keyword, position):
-    file_name = f"{keyword}_{position}.webp"
-    try:
-        res = supabase.storage.from_(STORAGE_BUCKET).list(options={"prefix": file_name})
-        for item in res:
-            if item.get('name') == file_name:
-                return supabase.storage.from_(STORAGE_BUCKET).get_public_url(file_name)
-        return None
-    except Exception as e:
-        print(f"Error checking existing image {file_name}: {e}")
         return None
 
 @app.route('/', methods=['GET', 'POST'])
@@ -188,62 +176,63 @@ def index():
         show_karakter = int(request.form['show_karakter'])
         
         for keyword in keywords:
-            temp_dir = os.path.join('temp', keyword)
+            temp_dir = os.path.join('temp', keyword)  # Unique folder per keyword
             os.makedirs(temp_dir, exist_ok=True)
             
-            new_urls = [None] * 4  # Initialize for positions 0-3
-
             try:
-                # Download images
+                # Download gambar
                 crawler = GoogleImageCrawler(storage={'root_dir': temp_dir})
                 crawler.crawl(keyword=keyword, max_num=4)
-                downloaded_images = sorted(os.listdir(temp_dir))
-            except Exception as e:
-                downloaded_images = []
-                print(f"Error downloading images for {keyword}: {e}")
-
-            # Process new images
-            for i in range(4):
-                if i < len(downloaded_images):
-                    input_path = os.path.join(temp_dir, downloaded_images[i])
-                    output_path = os.path.join(temp_dir, f"{keyword}_{i}.webp")
-                    if compress_to_webp(input_path, output_path):
-                        uploaded_url = upload_to_supabase(output_path, keyword)
-                        if uploaded_url:
-                            new_urls[i] = uploaded_url
-
-            # Check existing storage for missing positions
-            existing_checked_urls = []
-            for i in range(4):
-                if new_urls[i] is not None:
-                    existing_checked_urls.append(new_urls[i])
-                else:
-                    existing_url = get_existing_image_url(keyword, i)
-                    existing_checked_urls.append(existing_url)
-
-            # Check if any URL exists
-            if any(existing_checked_urls):
-                db_data = {
+                
+                # Proses gambar yang berhasil di-download
+                image_files = os.listdir(temp_dir)
+                image_urls = []
+                last_valid_url = None
+                
+                # Process maksimal 4 gambar
+                for i in range(4):
+                    if i < len(image_files):
+                        input_path = os.path.join(temp_dir, image_files[i])
+                        output_path = os.path.join(temp_dir, f"{keyword}_{i}.webp")
+                        
+                        if compress_to_webp(input_path, output_path):
+                            url = upload_to_supabase(output_path, keyword)
+                            if url:
+                                image_urls.append(url)
+                                last_valid_url = url  # Simpan URL terakhir yang valid
+                            else:
+                                image_urls.append(last_valid_url if last_valid_url else '#')  # Fallback
+                        else:
+                            image_urls.append(last_valid_url if last_valid_url else '#')  # Fallback
+                    else:
+                        # Jika gambar kurang dari 4, duplikat URL terakhir atau isi dummy
+                        image_urls.append(last_valid_url if last_valid_url else '#')
+                
+                # Pastikan selalu ada 4 URL
+                final_urls = image_urls[:4]  # Ambil maksimal 4
+                
+                # Insert ke database
+                response = supabase.table('puzzles').insert({
                     'answer': keyword,
-                    'show_karakter': show_karakter,
+                    'image_url_1': final_urls[0] if final_urls[0] else '#',
+                    'image_url_2': final_urls[1] if len(final_urls) > 1 else final_urls[0],
+                    'image_url_3': final_urls[2] if len(final_urls) > 2 else final_urls[0],
+                    'image_url_4': final_urls[3] if len(final_urls) > 3 else final_urls[0],
                     'created_at': datetime.datetime.now().isoformat(),
-                    'image_url_1': existing_checked_urls[0],
-                    'image_url_2': existing_checked_urls[1],
-                    'image_url_3': existing_checked_urls[2],
-                    'image_url_4': existing_checked_urls[3],
-                }
-                response = supabase.table('puzzles').insert(db_data).execute()
+                    'show_karakter': show_karakter
+                }).execute()
+                
                 if response.error:
                     print(f"⚠️ Database Error for {keyword}: {response.error.message}")
                 else:
-                    print(f"✅ Success: {keyword} inserted with images")
-            else:
-                print(f"❌ No valid images for {keyword}, skipping DB insertion.")
-
-            # Cleanup temp directory
-            shutil.rmtree(temp_dir, ignore_errors=True)
+                    print(f"✅ Success: {keyword} inserted with {len(final_urls)} images")
+                
+            except Exception as e:
+                print(f"❌ Critical error processing {keyword}: {str(e)}")
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
         
-        return redirect('/?success=true')
+        return redirect('/?success=true')  # Tambahkan query parameter
     
     return render_template_string(HTML_FORM)
 
